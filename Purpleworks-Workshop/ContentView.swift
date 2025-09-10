@@ -10,7 +10,7 @@ import SwiftUI
 enum SidebarItem: Hashable {
     case createTeam
     case scoreboard
-    case scoreboardWeb   // ← 추가
+    case scoreboardWeb
     case etc
 }
 

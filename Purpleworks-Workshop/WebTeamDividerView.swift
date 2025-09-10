@@ -22,7 +22,6 @@ struct WebTeamDividerImportView: View {
 
     var body: some View {
         LocalHTMLBridgeView(resource: "randomTeam", ext: "html", messageName: "teamSync") { payload in
-            // JS에서 { teams: [["이름1","이름2"], ["이름3",...]] } 형태로 받는다고 가정
             guard
                 let dict = payload as? [String: Any],
                 let arrays = dict["teams"] as? [[String]]

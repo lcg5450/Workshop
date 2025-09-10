@@ -12,7 +12,10 @@
         
         <div class="input-section">
             <label for="members-input">팀원 이름을 수정하거나 그대로 사용하세요 (쉼표로 구분)</label><br/>
-            <textarea id="members-input">정희성, 서병만, 서은원, 이상호, 강동훈, 권오규, 김민서, 김삼연, 김승리, 박경준, 성누리, 오규용, 이창귀, 이현로, 이화중, 정창욱, 정현석, 최재원, 박정현, 신혜란, 이규호, 이승원, 홍승균, 한영수, 강다인, 윤종원, 이용해, 정경환</textarea>
+            <textarea id="members-input">서은원, 이상호, 권오규, 김민서, 김삼연, 김승리, 박경준, 성누리, 오규용, 이현로, 이화중, 정창욱, 정현석, 최재원, 박정현, 이규호, 홍승균, 한영수, 윤종원, 이용해, 정경환</textarea> <br/>
+            
+            <label for="staff-input">참여하지 않는 인원 (쉼표로 구분)</label><br/>
+            <textarea id="staff-input">정희성, 서병만, 이승원, 강다인, 이창귀, 강동훈, 김지영, 윤현민, 신혜란</textarea>
             
             <div class="button-group">
                 <button onclick="generateTeams()" id="team-btn">팀 편성하기</button>
@@ -61,7 +64,7 @@
         }
 
         // 팀 편성 함수
-        function createRandomTeams(members, minSize = 4, maxSize = 5) {
+        function createRandomTeams(members, minSize = 5, maxSize = 6) {
             if (members.length < minSize) {
                 return [members];
             }
@@ -449,6 +452,7 @@
             const jsonObj = buildWorkshopJSON();
             const jsonText = JSON.stringify(jsonObj, null, 2); // 예쁘게 들여쓰기
             copyTextToClipboard(jsonText);
+            alert('복사 완료');
         }
     </script>
 </body>
