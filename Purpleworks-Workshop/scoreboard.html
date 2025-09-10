@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>가변 팀 점수판 (4~6팀, 팀 색상 강조)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f3f4f6; /* 밝은 회색 배경 */
+      --panel: #f9fafb;
+      --text: #111827;
+      --muted: #374151;
+      --divider: #d1d5db;
+      --ok: #22c55e;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif; }
+    .toolbar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; gap: .75rem; align-items: center; justify-content: space-between;
+      padding: .75rem 1rem; background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.6));
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    }
+    .toolbar h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--muted); }
+    .toolbar .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .btn, .segbtn {
+      appearance: none; border: 1px solid var(--divider); background: var(--panel);
+      color: var(--text); padding: .45rem .7rem; border-radius: .6rem; font-size: .9rem;
+      touch-action: manipulation; user-select: none;
+    }
+    .seg { display: inline-flex; border: 1px solid var(--divider); border-radius: .6rem; overflow: hidden; }
+    .segbtn { border: 0; border-right: 1px solid var(--divider); }
+    .segbtn:last-child { border-right: 0; }
+    .segbtn.active { background: #e5e7eb; outline: 2px solid #9ca3af; }
+    .btn.danger { border-color: #7f1d1d; color: #b91c1c; background:#fee2e2; }
+
+    .grid {
+      height: calc(100% - 56px);
+      display: grid;
+      gap: .5rem; padding: .5rem;
+    }
+
+    .tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 1rem; border: 2px solid var(--divider);
+      -webkit-user-select: none; user-select: none;
+      touch-action: manipulation;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      color: #111827;
+    }
+    .tile:active { transform: scale(.995); }
+
+    .name {
+      font-size: 1.8rem; font-weight: 800;
+      margin-bottom: .6rem;
+      display: flex; align-items: center; gap: .5rem;
+      position: relative; z-index: 1;
+      color: #111827;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+    }
+    .badge {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid rgba(0,0,0,.15);
+      box-shadow: 0 0 0 2px rgba(255,255,255,.5) inset;
+    }
+    .score {
+      font-size: clamp(4.5rem, 13vw, 10rem);
+      font-weight: 900;
+      line-height: 1.2;
+      position: relative; z-index: 2;
+      padding: .6rem 1.6rem;
+      border-radius: 1.2rem;
+      background: rgba(255,255,255,0.9);
+      color: #111827;
+      border: 2px solid rgba(0,0,0,.15);
+      box-shadow:
+        0 8px 18px rgba(0,0,0,.15),
+        0 0 0 4px color-mix(in srgb, var(--team-color, #000000) 50%, transparent);
+      text-shadow: 0 1px 2px rgba(255,255,255,.6);
+      transition: transform 120ms ease, box-shadow 150ms ease;
+    }
+    .score.pop { animation: pop 200ms cubic-bezier(.2,.9,.2,1); }
+    @keyframes pop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    .hint {
+      font-size: 1rem; color: var(--muted); margin-top: .6rem;
+      display: flex; gap: .4rem; align-items: center; position: relative; z-index: 1;
+    }
+    .hint .chip {
+      border: 1px solid var(--divider); padding: .25rem .6rem; border-radius: .5rem; font-size: .9rem;
+      background: rgba(255,255,255,.7); color: #111827;
+    }
+
+    .tile-tools {
+      position: absolute; left: .8rem; bottom: .6rem; display: flex; gap: .4rem; z-index: 3;
+    }
+    .mini {
+      font-size: .8rem; color: var(--muted); border: 1px dashed #9ca3af; padding: .25rem .6rem; border-radius: .5rem;
+      background: rgba(255,255,255,.6);
+    }
+    .mini:active { transform: scale(.98); }
+
+    .grid.cols-4 { grid-template-rows: repeat(4, 1fr); }
+    .grid.cols-5 { grid-template-rows: repeat(5, 1fr); }
+    .grid.cols-6 { grid-template-rows: repeat(6, 1fr); }
+    @media (orientation: landscape) and (min-width: 900px) {
+      .grid.cols-4 { grid-template-rows: none; grid-template-columns: repeat(4, 1fr); }
+      .grid.cols-5 { grid-template-rows: none; grid-template-columns: repeat(5, 1fr); }
+      .grid.cols-6 { grid-template-rows: none; grid-template-columns: repeat(6, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="row">
+      <h1>점수판 · 탭(+1) / 더블탭(−1)</h1>
+    </div>
+    <div class="row">
+      <div class="seg" id="teamCountSeg">
+        <button class="segbtn" data-n="4">4팀</button>
+        <button class="segbtn active" data-n="5">5팀</button>
+        <button class="segbtn" data-n="6">6팀</button>
+      </div>
+      <button class="btn" id="editNamesBtn">이름 편집</button>
+      <button class="btn danger" id="resetBtn">전체 초기화</button>
+    </div>
+  </div>
+
+  <div class="grid cols-5" id="grid"></div>
+
+  <script>
+    (function(){
+      const MIN_TEAMS=4,MAX_TEAMS=6;const DEFAULT_TEAMS=5;
+      const grid=document.getElementById('grid');
+      const seg=document.getElementById('teamCountSeg');
+      const editBtn=document.getElementById('editNamesBtn');
+      const resetBtn=document.getElementById('resetBtn');
+      const K_STATE='scoreboard:state:v6';
+      const PRESET=['#fca5a5','#86efac','#93c5fd','#fcd34d','#c4b5fd','#fdba74'];
+
+      function loadState(){
+        try{const raw=JSON.parse(localStorage.getItem(K_STATE)||'null');if(!raw)throw 0;
+          const count=clamp(raw.count??DEFAULT_TEAMS,MIN_TEAMS,MAX_TEAMS);
+          const names=Array.from({length:MAX_TEAMS},(_,i)=>raw.names?.[i]??`팀 ${i+1}`);
+          const scores=Array.from({length:MAX_TEAMS},(_,i)=>Number.isFinite(raw.scores?.[i])?raw.scores[i]:0);
+          const colors=Array.from({length:MAX_TEAMS},(_,i)=>raw.colors?.[i]??PRESET[i]);
+          return{count,names,scores,colors};}catch{const names=Array.from({length:MAX_TEAMS},(_,i)=>`팀 ${i+1}`);
+          const scores=Array(MAX_TEAMS).fill(0);
+          const colors=PRESET.slice(0,MAX_TEAMS);
+          return{count:DEFAULT_TEAMS,names,scores,colors};}}
+      function saveState(){localStorage.setItem(K_STATE,JSON.stringify(state));}
+      function clamp(v,a,b){return Math.min(Math.max(v,a),b);}
+
+      let state=loadState();
+
+      seg.querySelectorAll('.segbtn').forEach(btn=>{const n=Number(btn.dataset.n);if(n===state.count)btn.classList.add('active');
+        btn.addEventListener('click',()=>{seg.querySelectorAll('.segbtn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');setTeamCount(n);});});
+
+      function setTeamCount(n){state.count=clamp(n,MIN_TEAMS,MAX_TEAMS);saveState();render();}
+
+      let tiles=[];
+      function render(){
+        grid.classList.remove('cols-4','cols-5','cols-6');
+        grid.classList.add('cols-'+state.count);
+        grid.innerHTML='';tiles=[];
+
+        for(let i=0;i<state.count;i++){
+          const tile=document.createElement('div');
+          tile.className='tile';tile.dataset.index=i;
+          tile.style.setProperty('--team-color',state.colors[i]);
+          tile.style.background=`linear-gradient(135deg, ${state.colors[i]}aa, ${state.colors[i]}ff)`;
+
+          const nameEl=document.createElement('div');nameEl.className='name';
+          const badge=document.createElement('span');badge.className='badge';badge.style.background=state.colors[i];
+          nameEl.appendChild(badge);
+          const nameText=document.createElement('span');nameText.textContent=state.names[i];
+          nameEl.appendChild(nameText);
+
+          const scoreEl=document.createElement('div');scoreEl.className='score';scoreEl.textContent=state.scores[i];
+
+          const hintEl=document.createElement('div');hintEl.className='hint';
+          const chip1=document.createElement('span');chip1.className='chip';chip1.textContent='+1';
+          const chip2=document.createElement('span');chip2.className='chip';chip2.textContent='−1';
+          hintEl.append(chip1,chip2);
+
+          const tools=document.createElement('div');tools.className='tile-tools';
+          const btnName=document.createElement('button');btnName.className='mini';btnName.textContent='이름';
+          const btnColor=document.createElement('button');btnColor.className='mini';btnColor.textContent='색상';
+          tools.append(btnName,btnColor);
+
+          const content=document.createElement('div');
+          content.style.display='flex';
+          content.style.flexDirection='column';
+          content.style.alignItems='center';
+          content.style.justifyContent='center';
+          content.appendChild(nameEl);
+          content.appendChild(scoreEl);
+
+          tile.append(content,hintEl,tools);
+          grid.appendChild(tile);
+
+          tiles.push({tile,nameEl,nameText: nameEl.querySelector('span:last-child'),scoreEl,hintEl,badge,btnName,btnColor});}
+        bindInteractions();}
+
+      function bump(idx,delta){
+        state.scores[idx]=(state.scores[idx]??0)+delta;
+        const sc=tiles[idx].scoreEl;const tile=tiles[idx].tile;
+        sc.textContent=state.scores[idx];
+        sc.classList.remove('pop');void sc.offsetWidth;sc.classList.add('pop');
+        const prevShadow=sc.style.boxShadow;
+        const teamColor=getComputedStyle(tile).getPropertyValue('--team-color').trim()||'#000';
+        const pulse=(delta>0)?`,0 0 0 4px rgba(34,197,94,.6)`:`,0 0 0 4px rgba(239,68,68,.6)`;
+        sc.style.boxShadow=`0 6px 18px rgba(0,0,0,.3),0 0 0 4px ${teamColor}${pulse}`;
+        setTimeout(()=>{sc.style.boxShadow=prevShadow;},220);
+        saveState();}
+
+      const tapState=new Map();const DOUBLE_TAP_MS=300;
+      function onActivate(idx,ev){if(ev){ev.preventDefault?.();ev.stopPropagation?.();}
+        const now=performance.now();const s=tapState.get(idx)||{timer:null,last:0};
+        if(now-s.last<DOUBLE_TAP_MS){if(s.timer)clearTimeout(s.timer);s.timer=null;s.last=0;bump(idx,-1);}else{s.last=now;s.timer=setTimeout(()=>{bump(idx,+1);s.last=0;s.timer=null;},DOUBLE_TAP_MS);}tapState.set(idx,s);}
+
+      function bindInteractions(){
+        tiles.forEach(({tile,btnName,btnColor,nameText,badge},idx)=>{
+          tile.addEventListener('pointerdown',(e)=>onActivate(idx,e),{passive:false});
+
+          btnName.addEventListener('pointerdown',(e)=>{e.stopPropagation();e.preventDefault();const cur=state.names[idx];
+            const next=prompt(`팀 ${idx+1} 이름:`,cur??'');if(next===null)return;if(next.trim()!==''){state.names[idx]=next.trim();nameText.textContent=state.names[idx];saveState();}},
+          {passive:false});
+
+          btnColor.addEventListener('pointerdown',(e)=>{e.stopPropagation();e.preventDefault();
+            openColorPicker(state.colors[idx],(chosen)=>{if(!chosen)return;state.colors[idx]=chosen;badge.style.background=chosen;tile.style.setProperty('--team-color',chosen);tile.style.background=`linear-gradient(135deg, ${chosen}aa, ${chosen}ff)`;saveState();});},
+          {passive:false});});}
+
+      function openColorPicker(initial,cb){const input=document.createElement('input');input.type='color';input.value=normalizeHex(initial)||'#ffffff';input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);
+        input.addEventListener('input',()=>cb(input.value),{once:true});input.addEventListener('change',()=>{cb(input.value);setTimeout(()=>document.body.removeChild(input),0);},{once:true});input.click();}
+      function normalizeHex(hx){if(!hx)return null;if(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(hx))return hx;return null;}
+
+      editBtn.addEventListener('click',()=>{for(let i=0;i<state.count;i++){const cur=state.names[i];const next=prompt(`팀 ${i+1} 이름:`,cur??'');if(next===null)break;if(next.trim()!==''){state.names[i]=next.trim();tiles[i].nameText.textContent=state.names[i];}}saveState();});
+
+      resetBtn.addEventListener('click',()=>{if(!confirm('모든 점수를 0으로 초기화할까요?'))return;for(let i=0;i<state.scores.length;i++)state.scores[i]=0;tiles.forEach(({scoreEl},i)=>{if(i<state.count)scoreEl.textContent=0;});saveState();});
+
+      document.addEventListener('gesturestart',(e)=>e.preventDefault(),{passive:false});
+      document.addEventListener('dblclick',(e)=>e.preventDefault(),{passive:false});
+      document.addEventListener('contextmenu',(e)=>e.preventDefault());
+
+      render();
+    })();
+  </script>
+</body>
+</html>

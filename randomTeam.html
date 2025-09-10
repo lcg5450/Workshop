@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>퍼플웍스 퀴즈퀴즈 팀 편성기</title>
+    <link rel="stylesheet" type="text/css" href="./styles.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 퍼플웍스 퀴즈퀴즈 팀 편성기</h1>
+        
+        <div class="input-section">
+            <label for="members-input">팀원 이름을 수정하거나 그대로 사용하세요 (쉼표로 구분)</label><br/>
+            <textarea id="members-input">정희성, 서병만, 서은원, 이상호, 강동훈, 권오규, 김민서, 김삼연, 김승리, 박경준, 성누리, 오규용, 이창귀, 이현로, 이화중, 정창욱, 정현석, 최재원, 박정현, 신혜란, 이규호, 이승원, 홍승균, 한영수, 강다인, 윤종원, 이용해, 정경환</textarea>
+            
+            <div class="button-group">
+                <button onclick="generateTeams()" id="team-btn">팀 편성하기</button>
+                <button onclick="regenerateTeams()" id="regen-btn" disabled>다시 편성</button>
+            </div>
+        </div>
+        
+        <div class="area-title">팀원 목록</div>
+        <div class="members-display-area" id="members-display-area">
+            <!-- 멤버들이 여기에 표시됩니다 -->
+        </div>
+        
+        <div class="area-title" style="margin-top: 30px;">팀 편성 결과</div>
+        <div class="team-formation-area" id="team-formation-area">
+            <div class="initial-message" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                팀 편성 후 결과가 여기에 표시됩니다
+            </div>
+        </div>
+        
+        <div class="team-info" id="team-info">
+            <h3 style="text-align: center; margin-bottom: 20px;">팀 편성 상세</h3>
+            <div class="team-summary" id="team-summary"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentMembers = [];
+        let memberElements = [];
+        let currentTeams = [];
+        let inputTimeout;
+
+        // 팀 색상 배열
+        const teamColors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+        ];
+
+        // Fisher-Yates 섞기 알고리즘
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // 팀 편성 함수
+        function createRandomTeams(members, minSize = 4, maxSize = 5) {
+            if (members.length < minSize) {
+                return [members];
+            }
+            
+            const shuffledMembers = [...members];
+            shuffleArray(shuffledMembers);
+            
+            const teams = [];
+            let remainingMembers = [...shuffledMembers];
+            
+            while (remainingMembers.length > 0) {
+                if (remainingMembers.length <= maxSize) {
+                    if (remainingMembers.length >= minSize) {
+                        teams.push(remainingMembers);
+                    } else {
+                        if (teams.length > 0) {
+                            teams[teams.length - 1].push(...remainingMembers);
+                        } else {
+                            teams.push(remainingMembers);
+                        }
+                    }
+                    break;
+                }
+                
+                const remainingCount = remainingMembers.length;
+                let teamSize;
+                
+                if (remainingCount % maxSize === 0) {
+                    teamSize = maxSize;
+                } else if (remainingCount % minSize === 0) {
+                    teamSize = minSize;
+                } else {
+                    const remainderWithMax = remainingCount % maxSize;
+                    teamSize = (remainderWithMax === 0 || remainderWithMax >= minSize) ? maxSize : minSize;
+                }
+                
+                const currentTeam = remainingMembers.slice(0, teamSize);
+                teams.push(currentTeam);
+                remainingMembers = remainingMembers.slice(teamSize);
+            }
+            
+            return teams;
+        }
+
+        // 멤버 표시 함수
+        function showMembers() {
+            const input = document.getElementById('members-input').value.trim();
+            const newMembers = input ? input.split(',').map(name => name.trim()).filter(name => name) : [];
+            
+            // 기존 멤버와 같은지 확인
+            if (JSON.stringify(newMembers) === JSON.stringify(currentMembers)) {
+                return;
+            }
+            
+            currentMembers = newMembers;
+            const displayArea = document.getElementById('members-display-area');
+            
+            // 기존 멤버들 제거
+            memberElements.forEach(el => {
+                el.style.opacity = '0';
+                el.style.transform = 'scale(0)';
+                setTimeout(() => el.remove(), 300);
+            });
+            memberElements = [];
+            
+            if (currentMembers.length === 0) {
+                document.getElementById('team-btn').disabled = true;
+                document.getElementById('regen-btn').disabled = true;
+                return;
+            }
+            
+            if (currentMembers.length < 2) {
+                document.getElementById('team-btn').disabled = true;
+                document.getElementById('regen-btn').disabled = true;
+                return;
+            }
+            
+            // 새 멤버들 생성
+            currentMembers.forEach((member, index) => {
+                const circle = document.createElement('div');
+                circle.className = 'member-circle floating';
+                circle.textContent = member;
+                circle.style.backgroundColor = teamColors[index % teamColors.length];
+                circle.dataset.originalIndex = index;
+                circle.dataset.memberName = member;
+                
+                displayArea.appendChild(circle);
+                memberElements.push(circle);
+                
+                // 약간의 지연을 두고 나타나는 효과
+                setTimeout(() => {
+                    circle.classList.add('show');
+                }, index * 100);
+            });
+            
+            document.getElementById('team-btn').disabled = false;
+            
+            // 팀 편성이 이미 되어있다면 리셋
+            if (currentTeams.length > 0) {
+                document.getElementById('regen-btn').disabled = true;
+                document.getElementById('team-info').classList.remove('show');
+                currentTeams = [];
+                
+                // 팀 편성 영역 초기화
+                const formationArea = document.getElementById('team-formation-area');
+                document.querySelectorAll('.team-container').forEach(container => container.remove());
+                
+                if (!formationArea.querySelector('.initial-message')) {
+                    formationArea.innerHTML = `
+                        <div class="initial-message" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                            팀 편성 후 결과가 여기에 표시됩니다
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // textarea 변경 감지
+        document.getElementById('members-input').addEventListener('input', function() {
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => {
+                showMembers();
+            }, 300); // 300ms 딜레이로 너무 자주 업데이트되는 것을 방지
+        });
+
+        // 팀 위치 계산
+        function calculateTeamPositions(teams) {
+            const formationArea = document.getElementById('team-formation-area');
+            const areaRect = formationArea.getBoundingClientRect();
+            const teamPositions = [];
+            
+            const cols = Math.ceil(Math.sqrt(teams.length));
+            const rows = Math.ceil(teams.length / cols);
+            
+            teams.forEach((team, index) => {
+                const col = index % cols;
+                const row = Math.floor(index / cols);
+                
+                const centerX = (areaRect.width / cols) * (col + 0.5) - 30;
+                const centerY = (areaRect.height / rows) * (row + 0.5) - 30;
+                
+                const teamMembers = team.length;
+                const radius = Math.max(40, teamMembers * 15);
+                
+                const memberPositions = team.map((_, memberIndex) => {
+                    if (teamMembers === 1) {
+                        return { x: centerX, y: centerY };
+                    }
+                    
+                    const angle = (2 * Math.PI * memberIndex) / teamMembers;
+                    return {
+                        x: centerX + Math.cos(angle) * radius,
+                        y: centerY + Math.sin(angle) * radius
+                    };
+                });
+                
+                teamPositions.push({
+                    center: { x: centerX + 30, y: centerY + 30 },
+                    members: memberPositions,
+                    radius: radius + 50
+                });
+            });
+            
+            return teamPositions;
+        }
+
+        // 원소의 현재 위치 계산
+        function getCurrentPosition(element) {
+            const rect = element.getBoundingClientRect();
+            const containerRect = element.offsetParent ? element.offsetParent.getBoundingClientRect() : document.body.getBoundingClientRect();
+            return {
+                x: rect.left - containerRect.left,
+                y: rect.top - containerRect.top
+            };
+        }
+
+        // 팀 편성 실행
+        function generateTeams() {
+            if (currentMembers.length === 0) {
+                alert('팀원을 입력해주세요!');
+                return;
+            }
+            
+            if (currentMembers.length < 2) {
+                alert('최소 2명 이상의 팀원을 입력해주세요!');
+                return;
+            }
+            
+            currentTeams = createRandomTeams(currentMembers);
+            const teamPositions = calculateTeamPositions(currentTeams);
+            const formationArea = document.getElementById('team-formation-area');
+            const displayArea = document.getElementById('members-display-area');
+            
+            // 초기 메시지 제거
+            const initialMessage = formationArea.querySelector('.initial-message');
+            if (initialMessage) {
+                initialMessage.remove();
+            }
+            
+            // 기존 팀 컨테이너 제거
+            document.querySelectorAll('.team-container').forEach(container => container.remove());
+            
+            // 각 멤버의 현재 위치를 기록
+            memberElements.forEach(element => {
+                const currentPos = getCurrentPosition(element);
+                element.style.position = 'absolute';
+                element.style.left = currentPos.x + 'px';
+                element.style.top = currentPos.y + 'px';
+                element.classList.remove('floating');
+                element.classList.add('moving');
+                formationArea.appendChild(element);
+            });
+            
+            // 약간의 딜레이 후 각 팀별로 처리
+            setTimeout(() => {
+                currentTeams.forEach((team, teamIndex) => {
+                    const teamColor = teamColors[teamIndex % teamColors.length];
+                    const positions = teamPositions[teamIndex];
+                    
+                    // 팀 컨테이너 생성
+                    const teamContainer = document.createElement('div');
+                    teamContainer.className = 'team-container';
+                    teamContainer.style.left = (positions.center.x - positions.radius/2) + 'px';
+                    teamContainer.style.top = (positions.center.y - positions.radius/2) + 'px';
+                    teamContainer.style.width = positions.radius + 'px';
+                    teamContainer.style.height = positions.radius + 'px';
+                    teamContainer.style.borderColor = teamColor;
+                    
+                    const teamLabel = document.createElement('div');
+                    teamLabel.className = 'team-label';
+                    teamLabel.textContent = `팀 ${teamIndex + 1}`;
+                    teamLabel.style.color = teamColor;
+                    teamContainer.appendChild(teamLabel);
+                    
+                    formationArea.appendChild(teamContainer);
+                    
+                    // 팀 멤버들을 해당 위치로 이동
+                    team.forEach((memberName, memberIndex) => {
+                        const memberElement = memberElements.find(el => el.dataset.memberName === memberName);
+                        if (memberElement) {
+                            memberElement.style.backgroundColor = teamColor;
+                            
+                            setTimeout(() => {
+                                memberElement.style.left = positions.members[memberIndex].x + 'px';
+                                memberElement.style.top = positions.members[memberIndex].y + 'px';
+                            }, teamIndex * 100 + memberIndex * 50);
+                        }
+                    });
+                    
+                    // 팀 컨테이너와 라벨 표시
+                    setTimeout(() => {
+                        teamContainer.style.opacity = '1';
+                        teamLabel.style.opacity = '1';
+                    }, teamIndex * 200 + 800);
+                });
+                
+                // 팀 정보 표시
+                setTimeout(() => {
+                    displayTeamInfo(currentTeams);
+                    document.getElementById('regen-btn').disabled = false;
+                }, 2000);
+            }, 100);
+        }
+
+        // 팀 정보 표시
+        function displayTeamInfo(teams) {
+            const teamSummary = document.getElementById('team-summary');
+            teamSummary.innerHTML = '';
+            
+            teams.forEach((team, index) => {
+                const teamCard = document.createElement('div');
+                teamCard.className = 'team-card';
+                teamCard.style.borderLeft = `5px solid ${teamColors[index % teamColors.length]}`;
+                
+                teamCard.innerHTML = `
+                    <h4>팀 ${index + 1} (${team.length}명)</h4>
+                    <ul>
+                        ${team.map(member => `<li>• ${member}</li>`).join('')}
+                    </ul>
+                `;
+                
+                teamSummary.appendChild(teamCard);
+            });
+            
+            document.getElementById('team-info').classList.add('show');
+        }
+
+        // 다시 편성
+        function regenerateTeams() {
+            if (currentMembers.length === 0) return;
+            
+            // 멤버들을 다시 위쪽 영역으로 이동
+            const displayArea = document.getElementById('members-display-area');
+            const formationArea = document.getElementById('team-formation-area');
+            
+            // 팀 컨테이너들 제거
+            document.querySelectorAll('.team-container').forEach(container => container.remove());
+            document.getElementById('team-info').classList.remove('show');
+            
+            // 초기 메시지 다시 추가
+            formationArea.innerHTML = `
+                <div class="initial-message" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    팀 편성 후 결과가 여기에 표시됩니다
+                </div>
+            `;
+            
+            // 멤버들을 다시 위쪽으로 이동
+            memberElements.forEach((element, index) => {
+                element.classList.remove('moving', 'positioned');
+                element.classList.add('floating');
+                element.style.backgroundColor = teamColors[index % teamColors.length];
+                element.style.position = 'relative';
+                element.style.left = 'auto';
+                element.style.top = 'auto';
+                element.style.transform = 'scale(1)';
+                
+                displayArea.appendChild(element);
+            });
+            
+            document.getElementById('regen-btn').disabled = true;
+            
+            // 잠시 후 새로운 팀 편성
+            setTimeout(() => {
+                generateTeams();
+            }, 800);
+        }
+
+        // 페이지 로드 시 초기 멤버 표시
+        document.addEventListener('DOMContentLoaded', function() {
+            showMembers();
+        });
+    </script>
+</body>
+</html>
