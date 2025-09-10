@@ -106,16 +106,13 @@ struct LocalHTMLBridgeView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        let controller = WKUserContentController()
-        controller.add(context.coordinator, name: messageName)
-
         let config = WKWebViewConfiguration()
-        config.userContentController = controller
-
         let webView = WKWebView(frame: .zero, configuration: config)
-        webView.uiDelegate = context.coordinator             // ✅ 알럿 처리 위임
-        // webView.navigationDelegate = context.coordinator   // (필요시)
-
+        webView.uiDelegate = context.coordinator
+        webView.navigationDelegate = context.coordinator
+        if let url = Bundle.main.url(forResource: resource, withExtension: ext) {
+            webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        }
         return webView
     }
 
@@ -125,9 +122,11 @@ struct LocalHTMLBridgeView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler, WKUIDelegate {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate {
         let onMessage: (Any) -> Void
         let messageName: String
+        let autoPasteOnAppear: Bool = true
+        private var didAutoPasteOnce = false
 
         init(onMessage: @escaping (Any) -> Void, messageName: String) {
             self.onMessage = onMessage
@@ -193,6 +192,40 @@ struct LocalHTMLBridgeView: UIViewRepresentable {
             if let tab = base as? UITabBarController { return topViewController(base: tab.selectedViewController) }
             if let presented = base?.presentedViewController { return topViewController(base: presented) }
             return base
+        }
+        
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard autoPasteOnAppear, !didAutoPasteOnce else { return }
+            didAutoPasteOnce = true
+
+            // iOS 클립보드에서 문자열 읽기
+            guard let text = UIPasteboard.general.string, !text.isEmpty else { return }
+
+            // JS 문자열 리터럴로 안전하게 이스케이프
+            let escaped = Self.jsStringLiteral(from: text)
+
+            // 페이지에 정의된 window.__autoPaste 호출
+            let js = "window.__autoPaste && window.__autoPaste(\(escaped));"
+            webView.evaluateJavaScript(js) { _, err in
+                if let err { print("autoPaste JS error:", err) }
+            }
+        }
+
+        // JS 문자열 리터럴 생성기: "..." 형태로 안전하게 감싸줌
+        static func jsStringLiteral(from s: String) -> String {
+            // ["text"] 형태의 JSON을 만들고 대괄호 제거 → 안전한 JS 문자열 리터럴
+            if let data = try? JSONSerialization.data(withJSONObject: [s], options: []),
+               var str = String(data: data, encoding: .utf8) {
+                str.removeFirst() // [
+                str.removeLast()  // ]
+                return str        // "..." 형태
+            }
+            // fallback
+            let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
+                           .replacingOccurrences(of: "\"", with: "\\\"")
+                           .replacingOccurrences(of: "\n", with: "\\n")
+                           .replacingOccurrences(of: "\r", with: "\\r")
+            return "\"\(escaped)\""
         }
     }
 }

@@ -149,7 +149,7 @@
 
   <script>
     (function(){
-      const MIN_TEAMS=3,MAX_TEAMS=6;const DEFAULT_TEAMS=5;
+      const MIN_TEAMS=3,MAX_TEAMS=6;const DEFAULT_TEAMS=4;
       const grid=document.getElementById('grid');
       const seg=document.getElementById('teamCountSeg');
       const editBtn=document.getElementById('editNamesBtn');
@@ -256,6 +256,41 @@
           btnColor.addEventListener('pointerdown',(e)=>{e.stopPropagation();e.preventDefault();
             openColorPicker(state.colors[idx],(chosen)=>{if(!chosen)return;state.colors[idx]=chosen;badge.style.background=chosen;tile.style.setProperty('--team-color',chosen);tile.style.background=`linear-gradient(135deg, ${chosen}aa, ${chosen}ff)`;saveState();});},
           {passive:false});});}
+      
+      // 공용: JSON 적용 함수 (문자열 또는 객체 입력 지원)
+      function applyWorkshopJSON(input) {
+        const data = (typeof input === 'string') ? JSON.parse(input) : input;
+        if (!data || typeof data !== 'object' || !data.workshop || typeof data.workshop !== 'object') {
+          alert('JSON 형식이 올바르지 않습니다. 최상위 "workshop" 객체가 필요합니다.\n예: { "workshop": { "team1": [...], "team2": [...] } }');
+          return 0;
+        }
+
+        const names = Object.keys(data.workshop);
+        const members = Object.values(data.workshop);
+
+        const updatedCount = Math.min(names.length, state.names.length);
+        for (let i = 0; i < updatedCount; i++) {
+          if (names[i] && String(names[i]).trim()) {
+            state.names[i] = String(names[i]).trim();
+            state.members[i] = members[i] ?? [];
+          }
+        }
+
+        tiles.forEach(({ nameText, membersEl }, i) => {
+          if (i < state.count) {
+            nameText.textContent = state.names[i];
+            membersEl.innerHTML = '';
+            (state.members[i] || []).forEach(name => {
+              const nameSpan = document.createElement('span');
+              nameSpan.textContent = name;
+              membersEl.appendChild(nameSpan);
+            });
+          }
+        });
+
+        saveState();
+        return updatedCount;
+      }
 
       function openColorPicker(initial,cb){const input=document.createElement('input');input.type='color';input.value=normalizeHex(initial)||'#ffffff';input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);
         input.addEventListener('input',()=>cb(input.value),{once:true});input.addEventListener('change',()=>{cb(input.value);setTimeout(()=>document.body.removeChild(input),0);},{once:true});input.click();}
@@ -270,49 +305,12 @@
         }
         try {
           const text = await navigator.clipboard.readText();
-          if (!text) {
-            alert('클립보드에 내용이 없습니다.');
-            return;
-          }
-          const data = JSON.parse(text);
-          if (typeof data !== 'object' || data === null || typeof data.workshop !== 'object' || data.workshop === null) {
-            alert('JSON 형식이 올바르지 않습니다. 최상위 "workshop" 객체가 필요합니다.\n예: { "workshop": { "team1": [...], "team2": [...] } }');
-            return;
-          }
-
-          const names = Object.keys(data.workshop);
-          const members = Object.values(data.workshop);
-          
-          const updatedCount = Math.min(names.length, state.names.length);
-          for (let i = 0; i < updatedCount; i++) {
-            if (names[i] && String(names[i]).trim()) {
-              state.names[i] = String(names[i]).trim();
-              state.members[i] = members[i] ?? [];
-            }
-          }
-
-          tiles.forEach(({ nameText, membersEl }, i) => {
-            if (i < state.count) {
-              nameText.textContent = state.names[i];
-              membersEl.innerHTML = '';
-              (state.members[i] || []).forEach(name => {
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = name;
-                membersEl.appendChild(nameSpan);
-              });
-            }
-          });
-
-          saveState();
-          alert(`${updatedCount}개의 팀 이름을 성공적으로 업데이트했습니다.`);
-
+          if (!text) { alert('클립보드에 내용이 없습니다.'); return; }
+          const n = applyWorkshopJSON(text);
+          //if (n > 0) alert(`${n}개의 팀 이름을 성공적으로 업데이트했습니다.`);
         } catch (err) {
           console.error('클립보드 명단 붙여넣기 오류:', err);
-          if (err instanceof SyntaxError) {
-            alert('클립보드의 텍스트가 유효한 JSON 형식이 아닙니다.');
-          } else {
-            alert('데이터 처리 중 오류가 발생했습니다. 개발자 콘솔을 확인해주세요.');
-          }
+          alert(err instanceof SyntaxError ? '유효한 JSON 형식이 아닙니다.' : '데이터 처리 중 오류가 발생했습니다.');
         }
       });
 
@@ -322,6 +320,17 @@ tiles.forEach(({scoreEl, membersEl},i)=>{if(i<state.count){scoreEl.textContent=0
       document.addEventListener('gesturestart',(e)=>e.preventDefault(),{passive:false});
       document.addEventListener('dblclick',(e)=>e.preventDefault(),{passive:false});
       document.addEventListener('contextmenu',(e)=>e.preventDefault());
+      
+      // 네이티브가 호출할 자동 붙여넣기 엔트리
+      window.__autoPaste = function (clipboardText) {
+        try {
+          const n = applyWorkshopJSON(clipboardText);
+          if (n > 0) alert(`${n}개의 팀 이름을 성공적으로 업데이트했습니다.`);
+        } catch (e) {
+          console.error('auto paste error:', e);
+          alert('클립보드 JSON 처리 중 오류가 발생했습니다.');
+        }
+      };
 
       render();
     })();

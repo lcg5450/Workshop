@@ -20,7 +20,7 @@
             <div class="button-group">
                 <button onclick="generateTeams()" id="team-btn">팀 편성하기</button>
                 <button onclick="regenerateTeams()" id="regen-btn" disabled>다시 편성</button>
-                <button onclick="exportTeamsToApp()" id="export-btn" disabled>앱으로 보내기</button>
+                <button onclick="exportTeamsToApp()" id="export-btn" disabled>팀 편성 복사하기</button>
             </div>
         </div>
         
@@ -423,7 +423,7 @@
         if (navigator.clipboard && window.isSecureContext) {
           try {
             await navigator.clipboard.writeText(text);
-            alert('JSON이 클립보드에 복사됐습니다.');
+            alert('클립보드에 복사됐습니다.');
             return;
           } catch (e) {
             // fallback으로 진행
@@ -450,9 +450,8 @@
               return;
             }
             const jsonObj = buildWorkshopJSON();
-            const jsonText = JSON.stringify(jsonObj, null, 2); // 예쁘게 들여쓰기
+            const jsonText = JSON.stringify(jsonObj, null, 2);
             copyTextToClipboard(jsonText);
-            alert('복사 완료');
         }
     </script>
 </body>
