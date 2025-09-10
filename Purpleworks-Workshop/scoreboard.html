@@ -65,6 +65,19 @@
       color: #111827;
       text-shadow: 0 1px 2px rgba(255,255,255,0.6);
     }
+    .members {
+      font-size: 1.4rem;
+      font-weight: 700;
+      line-height: 1.5;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .2rem;
+      position: relative; z-index: 1;
+      color: #374151;
+      text-shadow: 0 1px 1px rgba(255,255,255,0.5);
+    }
     .badge {
       width: 22px; height: 22px; border-radius: 50%;
       border: 2px solid rgba(0,0,0,.15);
@@ -93,15 +106,6 @@
       100% { transform: scale(1); }
     }
 
-    .hint {
-      font-size: 1rem; color: var(--muted); margin-top: .6rem;
-      display: flex; gap: .4rem; align-items: center; position: relative; z-index: 1;
-    }
-    .hint .chip {
-      border: 1px solid var(--divider); padding: .25rem .6rem; border-radius: .5rem; font-size: .9rem;
-      background: rgba(255,255,255,.7); color: #111827;
-    }
-
     .tile-tools {
       position: absolute; left: .8rem; bottom: .6rem; display: flex; gap: .4rem; z-index: 3;
     }
@@ -111,10 +115,12 @@
     }
     .mini:active { transform: scale(.98); }
 
+    .grid.cols-3 { grid-template-rows: repeat(3, 1fr); }
     .grid.cols-4 { grid-template-rows: repeat(4, 1fr); }
     .grid.cols-5 { grid-template-rows: repeat(5, 1fr); }
     .grid.cols-6 { grid-template-rows: repeat(6, 1fr); }
     @media (orientation: landscape) and (min-width: 900px) {
+      .grid.cols-3 { grid-template-rows: none; grid-template-columns: repeat(3, 1fr); }
       .grid.cols-4 { grid-template-rows: none; grid-template-columns: repeat(4, 1fr); }
       .grid.cols-5 { grid-template-rows: none; grid-template-columns: repeat(5, 1fr); }
       .grid.cols-6 { grid-template-rows: none; grid-template-columns: repeat(6, 1fr); }
@@ -128,11 +134,13 @@
     </div>
     <div class="row">
       <div class="seg" id="teamCountSeg">
+        <button class="segbtn" data-n="3">3팀</button>
         <button class="segbtn" data-n="4">4팀</button>
         <button class="segbtn active" data-n="5">5팀</button>
         <button class="segbtn" data-n="6">6팀</button>
       </div>
       <button class="btn" id="editNamesBtn">이름 편집</button>
+      <button class="btn" id="pasteNamesBtn">명단 붙여넣기</button>
       <button class="btn danger" id="resetBtn">전체 초기화</button>
     </div>
   </div>
@@ -141,12 +149,13 @@
 
   <script>
     (function(){
-      const MIN_TEAMS=4,MAX_TEAMS=6;const DEFAULT_TEAMS=5;
+      const MIN_TEAMS=3,MAX_TEAMS=6;const DEFAULT_TEAMS=5;
       const grid=document.getElementById('grid');
       const seg=document.getElementById('teamCountSeg');
       const editBtn=document.getElementById('editNamesBtn');
+      const pasteNamesBtn=document.getElementById('pasteNamesBtn');
       const resetBtn=document.getElementById('resetBtn');
-      const K_STATE='scoreboard:state:v6';
+      const K_STATE='scoreboard:state:v7';
       const PRESET=['#fca5a5','#86efac','#93c5fd','#fcd34d','#c4b5fd','#fdba74'];
 
       function loadState(){
@@ -155,10 +164,12 @@
           const names=Array.from({length:MAX_TEAMS},(_,i)=>raw.names?.[i]??`팀 ${i+1}`);
           const scores=Array.from({length:MAX_TEAMS},(_,i)=>Number.isFinite(raw.scores?.[i])?raw.scores[i]:0);
           const colors=Array.from({length:MAX_TEAMS},(_,i)=>raw.colors?.[i]??PRESET[i]);
-          return{count,names,scores,colors};}catch{const names=Array.from({length:MAX_TEAMS},(_,i)=>`팀 ${i+1}`);
+          const members=Array.from({length:MAX_TEAMS},(_,i)=>raw.members?.[i]??[]);
+          return{count,names,scores,colors,members};}catch{const names=Array.from({length:MAX_TEAMS},(_,i)=>`팀 ${i+1}`);
           const scores=Array(MAX_TEAMS).fill(0);
           const colors=PRESET.slice(0,MAX_TEAMS);
-          return{count:DEFAULT_TEAMS,names,scores,colors};}}
+          const members=Array(MAX_TEAMS).fill([]);
+          return{count:DEFAULT_TEAMS,names,scores,colors,members};}}
       function saveState(){localStorage.setItem(K_STATE,JSON.stringify(state));}
       function clamp(v,a,b){return Math.min(Math.max(v,a),b);}
 
@@ -172,7 +183,7 @@
 
       let tiles=[];
       function render(){
-        grid.classList.remove('cols-4','cols-5','cols-6');
+        grid.classList.remove('cols-3','cols-4','cols-5','cols-6');
         grid.classList.add('cols-'+state.count);
         grid.innerHTML='';tiles=[];
 
@@ -190,10 +201,12 @@
 
           const scoreEl=document.createElement('div');scoreEl.className='score';scoreEl.textContent=state.scores[i];
 
-          const hintEl=document.createElement('div');hintEl.className='hint';
-          const chip1=document.createElement('span');chip1.className='chip';chip1.textContent='+1';
-          const chip2=document.createElement('span');chip2.className='chip';chip2.textContent='−1';
-          hintEl.append(chip1,chip2);
+          const membersEl=document.createElement('div');membersEl.className='members';
+          (state.members[i] || []).forEach(name => {
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            membersEl.appendChild(nameSpan);
+          });
 
           const tools=document.createElement('div');tools.className='tile-tools';
           const btnName=document.createElement('button');btnName.className='mini';btnName.textContent='이름';
@@ -205,13 +218,14 @@
           content.style.flexDirection='column';
           content.style.alignItems='center';
           content.style.justifyContent='center';
+          content.appendChild(membersEl);
           content.appendChild(nameEl);
           content.appendChild(scoreEl);
 
-          tile.append(content,hintEl,tools);
+          tile.append(content,tools);
           grid.appendChild(tile);
 
-          tiles.push({tile,nameEl,nameText: nameEl.querySelector('span:last-child'),scoreEl,hintEl,badge,btnName,btnColor});}
+          tiles.push({tile,nameEl,nameText: nameEl.querySelector('span:last-child'),scoreEl,membersEl,badge,btnName,btnColor});}
         bindInteractions();}
 
       function bump(idx,delta){
@@ -249,7 +263,61 @@
 
       editBtn.addEventListener('click',()=>{for(let i=0;i<state.count;i++){const cur=state.names[i];const next=prompt(`팀 ${i+1} 이름:`,cur??'');if(next===null)break;if(next.trim()!==''){state.names[i]=next.trim();tiles[i].nameText.textContent=state.names[i];}}saveState();});
 
-      resetBtn.addEventListener('click',()=>{if(!confirm('모든 점수를 0으로 초기화할까요?'))return;for(let i=0;i<state.scores.length;i++)state.scores[i]=0;tiles.forEach(({scoreEl},i)=>{if(i<state.count)scoreEl.textContent=0;});saveState();});
+      pasteNamesBtn.addEventListener('click', async () => {
+        if (!navigator.clipboard?.readText) {
+          alert('이 브라우저에서는 클립보드 API를 지원하지 않습니다.');
+          return;
+        }
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text) {
+            alert('클립보드에 내용이 없습니다.');
+            return;
+          }
+          const data = JSON.parse(text);
+          if (typeof data !== 'object' || data === null || typeof data.workshop !== 'object' || data.workshop === null) {
+            alert('JSON 형식이 올바르지 않습니다. 최상위 "workshop" 객체가 필요합니다.\n예: { "workshop": { "team1": [...], "team2": [...] } }');
+            return;
+          }
+
+          const names = Object.keys(data.workshop);
+          const members = Object.values(data.workshop);
+          
+          const updatedCount = Math.min(names.length, state.names.length);
+          for (let i = 0; i < updatedCount; i++) {
+            if (names[i] && String(names[i]).trim()) {
+              state.names[i] = String(names[i]).trim();
+              state.members[i] = members[i] ?? [];
+            }
+          }
+
+          tiles.forEach(({ nameText, membersEl }, i) => {
+            if (i < state.count) {
+              nameText.textContent = state.names[i];
+              membersEl.innerHTML = '';
+              (state.members[i] || []).forEach(name => {
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = name;
+                membersEl.appendChild(nameSpan);
+              });
+            }
+          });
+
+          saveState();
+          alert(`${updatedCount}개의 팀 이름을 성공적으로 업데이트했습니다.`);
+
+        } catch (err) {
+          console.error('클립보드 명단 붙여넣기 오류:', err);
+          if (err instanceof SyntaxError) {
+            alert('클립보드의 텍스트가 유효한 JSON 형식이 아닙니다.');
+          } else {
+            alert('데이터 처리 중 오류가 발생했습니다. 개발자 콘솔을 확인해주세요.');
+          }
+        }
+      });
+
+      resetBtn.addEventListener('click',()=>{if(!confirm('모든 점수를 0으로 초기화할까요?'))return;for(let i=0;i<state.scores.length;i++){state.scores[i]=0;state.members[i]=[];}
+tiles.forEach(({scoreEl, membersEl},i)=>{if(i<state.count){scoreEl.textContent=0;membersEl.innerHTML='';}});saveState();});
 
       document.addEventListener('gesturestart',(e)=>e.preventDefault(),{passive:false});
       document.addEventListener('dblclick',(e)=>e.preventDefault(),{passive:false});
